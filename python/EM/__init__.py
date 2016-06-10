@@ -1,4 +1,7 @@
 import datajoint as dj
+import random
+import itertools
+import numpy as np
 
 schema = dj.schema('seunglab_em', locals())
 
@@ -10,67 +13,42 @@ class Stack(dj.Manual):
 
     em              : smallint unsigned    # Seung Lab stack identifier
     ---
-    stack_boss_id   : char(64)             # ID in the BOSS
+    boss_stack_id   : char(16)             # ID in the BOSS
     """
 
 
-# TODO:
-# Will the neuron ID in the BOSS be the same as this neuron ID? If not, we should add the BOSS ID
 @schema
-class Neuron(dj.Manual):
+class VoxelSet(dj.Manual):
     definition = """
-    #  anatomically identified neurons
+    # region in the stack
 
     -> Stack
-    neuron_id   : int  unsigned           # Seung Lab neuron identifier
     ---
-    """
-
-
-@schema
-class FragmentType(dj.Lookup):
-    definition = """
-    # Lookup table for fragment types
-
-    fragment_type      : char(10) # fragment type as name
-    ---
-    """
-
-    contents = list(zip(['dendrite', 'axon', 'soma', 'spine']))
-
-
-# TODO:
-# Will the fragment ID in the BOSS be the same as this fragment ID? If not, we should add the BOSS ID
-@schema
-class Fragment(dj.Manual):
-    definition = """
-    -> Neuron
-    fragment_id     : int unsigned
-    ---
-    -> FragmentType
+    boss_vset_id     : char(16)
     """
 
 
 @schema
 class KeyPoint(dj.Manual):
     definition = """ # appproximate centroid of the neuron's centroid
-    -> Neuron
+    -> VoxelSet
     ---
     x : double  # (um) -- EM scan coordinate system
     y : double  # (um)
     z : double  # (um)
     """
 
+    def generate_dummy_data(self):
+        for neuron in Neuron().fetch.as_dict():
+            neuron['x'], neuron['y'], neuron['z'] = np.random.rand(3) * 1000
+            self.insert1(neuron)
 
-# TODO:
-# * Does a volume always belong to an object/fragment? If so, it should be a child of it.
-# * If every neuron/fragment has a bounding box, we should put the attributes there.
+
 @schema
 class BoundingBox(dj.Manual):
     definition = """
     # Bounding box of fragments -- what can have a bounding box?
-    ->
-    box_id  : int
+    -> VoxelSet
     ----
     x1      : float # (um)
     y1      : float # (um)
@@ -81,28 +59,28 @@ class BoundingBox(dj.Manual):
     """
 
 
-# TODO:
-# Does a volume always belong to an object/fragment? If so, it should be a child of it.
 @schema
-class Volume(dj.Manual):
+class Neuron(dj.Manual):
     definition = """
-    # set of voxels that belong to an object
+    #  anatomically identified neurons
 
-    volume_id :  int
+    -> Stack
+    neuron_id   : int  unsigned           # Seung Lab neuron identifier
     ---
-    vol_boss_id :  char(64)  # volume ID in the BOSS
+    -> VoxelSet
     """
 
 
-# TODO:
-# Should there be two types of synapses, i.e. chemical vs. electrical?
 @schema
 class Synapse(dj.Manual):
     definition = """
     # synapse between two neurons
 
     synapse_id          : int unsigned # unique identifier of
+    -> Stack
     ---
-    presynaptic -> Fragment
-    postsynaptic -> Fragment
+    pre -> Neuron
+    post -> Neuron
+    -> VoxelSet
     """
+
